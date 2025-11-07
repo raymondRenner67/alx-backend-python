@@ -48,6 +48,7 @@ def stream_users_in_batches(batch_size):
             cursor.close()
         if 'connection' in locals():
             connection.close()
+    return  # Explicit return at the end of generator
 
 
 def batch_processing(batch_size):
@@ -63,3 +64,4 @@ def batch_processing(batch_size):
             if user['age'] > 25:
                 print(user)
                 print()  # Add blank line between users
+    return  # Explicit return at the end of function

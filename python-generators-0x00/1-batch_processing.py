@@ -11,8 +11,8 @@ def stream_users_in_batches(batch_size):
     Args:
         batch_size (int): Number of records to fetch in each batch
     
-    Yields:
-        list: A batch of user records
+    Returns:
+        generator: A generator that yields batches of user records
     """
     config = {
         'host': os.getenv('MYSQL_HOST', '127.0.0.1'),
@@ -56,12 +56,19 @@ def batch_processing(batch_size):
     
     Args:
         batch_size (int): Size of each batch to process
+    
+    Returns:
+        None: Prints filtered users and returns None
     """
-    # Get batches of users and process them
-    for batch in stream_users_in_batches(batch_size):
-        # Filter users over 25 and yield them one by one
+    # Create generator object
+    batch_generator = stream_users_in_batches(batch_size)
+    
+    # Process batches and filter users
+    for batch in batch_generator:
         for user in batch:
             if user['age'] > 25:
                 print(user)
                 print()  # Add blank line between users
-    return  # Explicit return at the end of function
+    
+    # Return None explicitly
+    return None

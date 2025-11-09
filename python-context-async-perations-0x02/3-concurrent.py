@@ -3,63 +3,70 @@
 
 import asyncio
 import aiosqlite
-from typing import List, Tuple, Any
 
 
-async def async_fetch_users() -> List[Tuple[Any, ...]]:
+async def async_fetch_users():
     """Fetch all users from the database asynchronously.
     
     Returns:
-        List[Tuple]: List of all user records
+        list: All user records
     """
     async with aiosqlite.connect('users.db') as db:
+        db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM users") as cursor:
             return await cursor.fetchall()
 
 
-async def async_fetch_older_users() -> List[Tuple[Any, ...]]:
+async def async_fetch_older_users():
     """Fetch users older than 40 from the database asynchronously.
     
     Returns:
-        List[Tuple]: List of user records for users over 40
+        list: User records where age > 40
     """
     async with aiosqlite.connect('users.db') as db:
+        db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM users WHERE age > 40") as cursor:
             return await cursor.fetchall()
 
 
-async def fetch_concurrently() -> Tuple[List[Tuple[Any, ...]], List[Tuple[Any, ...]]]:
+async def fetch_concurrently():
     """Execute both fetch queries concurrently using asyncio.gather.
     
     Returns:
-        Tuple[List[Tuple], List[Tuple]]: Results from both queries
-            (all users, older users)
+        tuple: Contains results from both queries (all_users, older_users)
     """
-    # Use gather to run both queries concurrently
-    all_users, older_users = await asyncio.gather(
+    return await asyncio.gather(
         async_fetch_users(),
         async_fetch_older_users()
     )
-    return all_users, older_users
+
+
+def display_user(user):
+    """Helper function to format and display a user record."""
+    return (f"User(id={user['id']}, name='{user['name']}', "
+            f"email='{user['email']}', age={user['age']})")
 
 
 async def main():
-    """Main async function to demonstrate concurrent query execution."""
+    """Main async function that runs and displays results of concurrent queries."""
     try:
-        # Execute queries concurrently
+        # Execute both queries concurrently
         all_users, older_users = await fetch_concurrently()
-        
-        # Print results
-        print("All users:")
+
+        # Display all users
+        print("\nAll users:")
+        print("-" * 40)
         for user in all_users:
-            print(f"  {user}")
-            
+            print(display_user(user))
+
+        # Display older users
         print("\nUsers over 40:")
+        print("-" * 40)
         for user in older_users:
-            print(f"  {user}")
-            
+            print(display_user(user))
+
     except aiosqlite.Error as e:
-        print(f"Database error occurred: {e}")
+        print(f"Database error: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
 

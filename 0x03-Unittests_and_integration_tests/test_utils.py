@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Unit tests for the utils module.
 
-This module contains unit tests for utility functions including access_nested_map,
-get_json, and the memoize decorator. It uses parameterized tests and mocking to
-ensure comprehensive test coverage.
+This module contains unit tests for utility functions including
+access_nested_map, get_json, and the memoize decorator. It uses
+parameterized tests and mocking to ensure comprehensive test coverage.
 """
 import unittest
 from unittest.mock import patch, Mock
@@ -84,9 +84,9 @@ class TestMemoize(unittest.TestCase):
     def test_memoize(self) -> None:
         """Test that memoize decorator caches function results.
 
-        This test verifies that when a memoized method is called multiple times,
-        the underlying method is only called once, and the cached result is
-        returned on subsequent calls.
+        This test verifies that when a memoized method is called
+        multiple times, the underlying method is only called once,
+        and the cached result is returned on subsequent calls.
         """
         class TestClass:
             """Test class with a method and a memoized property."""
@@ -100,12 +100,13 @@ class TestMemoize(unittest.TestCase):
                 """Memoized property that calls a_method."""
                 return self.a_method()
 
-        with patch.object(TestClass, "a_method", return_value=42) as mock_method:
+        with patch.object(
+            TestClass, "a_method", return_value=42
+        ) as mock_method:
             obj = TestClass()
             # Call the memoized property twice
             result1 = obj.a_property
             result2 = obj.a_property
-
             # Verify both calls return 42
             self.assertEqual(result1, 42)
             self.assertEqual(result2, 42)

@@ -25,12 +25,15 @@ class MessageSerializer(serializers.ModelSerializer):
     Serializer for the Message model.
     Includes nested sender information.
     """
+    # include nested sender info and accept sender_id on write
     sender = UserSerializer(read_only=True)
     sender_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         write_only=True,
         source='sender'
     )
+    # ensure message_body is a CharField at serializer level for validation
+    message_body = serializers.CharField()
 
     class Meta:
         model = Message
@@ -58,6 +61,12 @@ class ConversationListSerializer(serializers.ModelSerializer):
         source='participants'
     )
 
+    def validate_participant_ids(self, value):
+        # require at least two participants for a conversation
+        if not value or len(value) < 2:
+            raise serializers.ValidationError('A conversation requires at least two participants')
+        return value
+
     class Meta:
         model = Conversation
         fields = [
@@ -82,6 +91,8 @@ class ConversationDetailSerializer(serializers.ModelSerializer):
         source='participants'
     )
     messages = MessageSerializer(many=True, read_only=True)
+    # example extra read-only field provided by a SerializerMethodField
+    message_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Conversation
@@ -93,3 +104,6 @@ class ConversationDetailSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['conversation_id', 'created_at', 'messages']
+
+    def get_message_count(self, obj):
+        return obj.messages.count()

@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import User, Conversation, Message
@@ -48,6 +48,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=True, methods=['post'])
+    def send_message(self, request, pk=None):
+        """
+        Send a message to this conversation.
+        Expects: {"sender_id": "<uuid>", "message_body": "text"}
+        """
+        conversation = self.get_object()
+        sender_id = request.data.get('sender_id')
+        message_body = request.data.get('message_body')
+
+        if not sender_id or not message_body:
+            return Response({'error': 'sender_id and message_body are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            sender = User.objects.get(user_id=sender_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Sender not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        message = Message.objects.create(sender=sender, conversation=conversation, message_body=message_body)
+        serializer = MessageSerializer(message)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
     def add_participant(self, request, pk=None):
@@ -122,6 +144,9 @@ class MessageViewSet(viewsets.ModelViewSet):
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    search_fields = ['message_body', 'sender__email']
+    ordering_fields = ['sent_at']
 
     def get_queryset(self):
         """

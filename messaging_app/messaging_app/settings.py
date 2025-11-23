@@ -124,6 +124,10 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Message Pagination Configuration
+# Messages API fetches 20 messages per page
+MESSAGE_PAGE_SIZE = 20
+
 # Django REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',

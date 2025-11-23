@@ -8,7 +8,7 @@ from .serializers import (
     ConversationDetailSerializer,
     MessageSerializer,
 )
-from .permissions import IsParticipantOrSender
+from .permissions import IsParticipantOfConversation
 from django.db.models import Q
 
 
@@ -32,7 +32,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     - Delete a conversation
     """
     queryset = Conversation.objects.all()
-    permission_classes = [IsParticipantOrSender]
+    permission_classes = [IsParticipantOfConversation]
 
     def get_queryset(self):
         """Limit conversations to those the requesting user participates in (unless staff)."""
@@ -156,7 +156,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsParticipantOrSender]
+    permission_classes = [IsParticipantOfConversation]
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['message_body', 'sender__email']
     ordering_fields = ['sent_at']

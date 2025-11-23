@@ -1,0 +1,1126 @@
+{
+  "info": {
+    "name": "Messaging App API Tests",
+    "description": "Comprehensive test collection for the Django Messaging App API with JWT authentication, conversations, messages, permissions, pagination, and filtering.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "1. Create Superuser (Setup)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "# Run this in terminal first:\n# python manage.py createsuperuser\n# Then use those credentials below"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/admin/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "admin",
+                ""
+              ]
+            },
+            "description": "Create a superuser via Django admin shell:\npython manage.py createsuperuser"
+          }
+        },
+        {
+          "name": "2. Obtain JWT Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.access);",
+                  "    pm.environment.set('refresh_token', jsonData.refresh);",
+                  "    console.log('Access Token:', jsonData.access);",
+                  "    console.log('Refresh Token:', jsonData.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"your_password_here\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/token/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "token",
+                ""
+              ]
+            },
+            "description": "Obtain JWT access and refresh tokens using username and password.\nResponse will be saved to environment variables: access_token and refresh_token"
+          }
+        },
+        {
+          "name": "3. Refresh JWT Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.access);",
+                  "    console.log('New Access Token obtained');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/token/refresh/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "token",
+                "refresh",
+                ""
+              ]
+            },
+            "description": "Refresh the JWT access token using the refresh token."
+          }
+        },
+        {
+          "name": "4. Test Unauthorized Access (No Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unauthorized access returns 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                ""
+              ]
+            },
+            "description": "Attempt to access conversations without authentication token. Should return 401 Unauthorized."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "item": [
+        {
+          "name": "1. List All Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has results', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.results).to.be.an('array');",
+                  "    if (jsonData.results.length > 0) {",
+                  "        pm.environment.set('user1_id', jsonData.results[0].user_id);",
+                  "        console.log('First user ID saved:', jsonData.results[0].user_id);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/users/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "users",
+                ""
+              ]
+            },
+            "description": "List all users in the system. Requires JWT authentication."
+          }
+        },
+        {
+          "name": "2. Get User Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/users/{{user1_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "users",
+                "{{user1_id}}",
+                ""
+              ]
+            },
+            "description": "Retrieve details of a specific user by ID."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "1. Create Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('conversation_id', jsonData.conversation_id);",
+                  "    console.log('Conversation created:', jsonData.conversation_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participant_ids\": [\"{{user1_id}}\", \"{{user2_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                ""
+              ]
+            },
+            "description": "Create a new conversation with specified participants. Note: You need to set user1_id and user2_id environment variables first."
+          }
+        },
+        {
+          "name": "2. List Conversations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has results array', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.results).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                ""
+              ]
+            },
+            "description": "List all conversations the authenticated user participates in."
+          }
+        },
+        {
+          "name": "3. Get Conversation Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response includes messages array', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.messages).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/{{conversation_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                "{{conversation_id}}",
+                ""
+              ]
+            },
+            "description": "Retrieve a specific conversation with all its messages."
+          }
+        },
+        {
+          "name": "4. Add Participant to Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user3_id}}\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/{{conversation_id}}/add_participant/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                "{{conversation_id}}",
+                "add_participant",
+                ""
+              ]
+            },
+            "description": "Add a new participant to an existing conversation."
+          }
+        },
+        {
+          "name": "5. Remove Participant from Conversation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user3_id}}\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/{{conversation_id}}/remove_participant/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                "{{conversation_id}}",
+                "remove_participant",
+                ""
+              ]
+            },
+            "description": "Remove a participant from a conversation."
+          }
+        },
+        {
+          "name": "6. Test Unauthorized Conversation Access",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Non-participant cannot access conversation', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403, 404]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{non_participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/{{conversation_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                "{{conversation_id}}",
+                ""
+              ]
+            },
+            "description": "Attempt to access a conversation as a non-participant. Should return 403 Forbidden."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "1. Send Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201 Created', function () {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('message_id', jsonData.message_id);",
+                  "    console.log('Message sent:', jsonData.message_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_id\": \"{{user1_id}}\",\n  \"conversation\": \"{{conversation_id}}\",\n  \"message_body\": \"Hello! This is a test message.\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ]
+            },
+            "description": "Send a new message to a conversation. Sender must be a participant."
+          }
+        },
+        {
+          "name": "2. List Messages (All)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('Response includes pagination info', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.count).to.exist;",
+                  "    pm.expect(jsonData.results).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ]
+            },
+            "description": "List all messages the authenticated user can see (paginated, 20 per page)."
+          }
+        },
+        {
+          "name": "3. List Messages with Pagination",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/?page=1",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "List messages with pagination. Default: 20 messages per page. Use page_size parameter to override."
+          }
+        },
+        {
+          "name": "4. Filter Messages by Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "",
+                  "pm.test('All messages belong to the conversation', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    jsonData.results.forEach(function(msg) {",
+                  "        pm.expect(msg.conversation).to.equal(pm.environment.get('conversation_id'));",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/?conversation={{conversation_id}}",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "conversation",
+                  "value": "{{conversation_id}}"
+                }
+              ]
+            },
+            "description": "Filter messages by conversation ID."
+          }
+        },
+        {
+          "name": "5. Filter Messages by Sender",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/?sender={{user1_id}}",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "sender",
+                  "value": "{{user1_id}}"
+                }
+              ]
+            },
+            "description": "Filter messages by sender user ID."
+          }
+        },
+        {
+          "name": "6. Filter Messages by Time Range",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/?sent_after=2025-11-01T00:00:00Z&sent_before=2025-11-30T23:59:59Z",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "sent_after",
+                  "value": "2025-11-01T00:00:00Z"
+                },
+                {
+                  "key": "sent_before",
+                  "value": "2025-11-30T23:59:59Z"
+                }
+              ]
+            },
+            "description": "Filter messages by sent timestamp range."
+          }
+        },
+        {
+          "name": "7. Filter Messages from Last N Days",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/?days_back=7",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "days_back",
+                  "value": "7"
+                }
+              ]
+            },
+            "description": "Filter messages from the last N days."
+          }
+        },
+        {
+          "name": "8. Search Messages by Content",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/?message_body=test",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "message_body",
+                  "value": "test"
+                }
+              ]
+            },
+            "description": "Search messages by content (case-insensitive)."
+          }
+        },
+        {
+          "name": "9. Get Message Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/{{message_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                "{{message_id}}",
+                ""
+              ]
+            },
+            "description": "Retrieve a specific message by ID."
+          }
+        },
+        {
+          "name": "10. Update Message",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_id\": \"{{user1_id}}\",\n  \"conversation\": \"{{conversation_id}}\",\n  \"message_body\": \"Updated message content.\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/{{message_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                "{{message_id}}",
+                ""
+              ]
+            },
+            "description": "Update an existing message. Only sender or conversation participants can update."
+          }
+        },
+        {
+          "name": "11. Delete Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 204 No Content', function () {",
+                  "    pm.expect(pm.response.code).to.equal(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/{{message_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                "{{message_id}}",
+                ""
+              ]
+            },
+            "description": "Delete a message. Only sender or conversation participants can delete."
+          }
+        },
+        {
+          "name": "12. Test Unauthorized Message Access",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Non-participant cannot access message', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403, 404]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{non_participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/{{message_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                "{{message_id}}",
+                ""
+              ]
+            },
+            "description": "Attempt to access a message from a conversation the user is not part of. Should return 403 Forbidden."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Permission & Security Tests",
+      "item": [
+        {
+          "name": "1. Test Unauthorized Conversation Creation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Unauthorized access returns 401 or 403', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401, 403]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"participant_ids\": [\"{{user1_id}}\", \"{{user2_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/conversations/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "conversations",
+                ""
+              ]
+            },
+            "description": "Attempt to create a conversation without authentication. Should return 401 Unauthorized."
+          }
+        },
+        {
+          "name": "2. Test Non-Participant Cannot Send Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Non-participant gets 403 Forbidden', function () {",
+                  "    pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{non_participant_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_id\": \"{{user3_id}}\",\n  \"conversation\": \"{{conversation_id}}\",\n  \"message_body\": \"Hacker trying to send message.\"\n}"
+            },
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                ""
+              ]
+            },
+            "description": "Attempt to send a message to a conversation as a non-participant. Should return 403 Forbidden."
+          }
+        },
+        {
+          "name": "3. Test Non-Participant Cannot Delete Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Non-participant gets 403 Forbidden', function () {",
+                  "    pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{non_participant_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://127.0.0.1:8000/api/messages/{{message_id}}/",
+              "protocol": "http",
+              "host": [
+                "127.0.0.1"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "messages",
+                "{{message_id}}",
+                ""
+              ]
+            },
+            "description": "Attempt to delete a message from a conversation as a non-participant. Should return 403 Forbidden."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user1_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user2_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user3_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "conversation_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "message_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "non_participant_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

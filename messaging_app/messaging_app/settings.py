@@ -50,6 +50,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'chats.middleware.RequestLoggingMiddleware',  # Custom middleware for request logging
 ]
 
 ROOT_URLCONF = 'messaging_app.urls'
@@ -160,4 +161,28 @@ SIMPLE_JWT = {
 # Custom User Model
 AUTH_USER_MODEL = 'chats.User'
 
-
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '%(message)s'
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': str(BASE_DIR / 'requests.log'),
+            'formatter': 'standard',
+        },
+    },
+    'loggers': {
+        'request_logger': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

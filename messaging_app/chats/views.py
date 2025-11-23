@@ -10,6 +10,8 @@ from .serializers import (
     MessageSerializer,
 )
 from .permissions import IsParticipantOfConversation
+from .pagination import MessagePagination
+from .filters import MessageFilter
 from django.db.models import Q
 
 
@@ -162,6 +164,8 @@ class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated, IsParticipantOfConversation]
+    pagination_class = MessagePagination
+    filterset_class = MessageFilter
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['message_body', 'sender__email']
     ordering_fields = ['sent_at']

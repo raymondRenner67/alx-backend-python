@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from .models import User, Conversation, Message
 from .serializers import (
     UserSerializer,
@@ -32,7 +33,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     - Delete a conversation
     """
     queryset = Conversation.objects.all()
-    permission_classes = [IsParticipantOfConversation]
+    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
 
     def get_queryset(self):
         """Limit conversations to those the requesting user participates in (unless staff)."""
@@ -78,6 +79,10 @@ class ConversationViewSet(viewsets.ModelViewSet):
             sender = User.objects.get(user_id=sender_id)
         except User.DoesNotExist:
             return Response({'error': 'Sender not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure sender is a participant (or admin) before creating
+        if not (sender in conversation.participants.all() or request.user.is_staff or request.user == sender):
+            return Response({'error': 'Sender is not a participant of this conversation'}, status=status.HTTP_403_FORBIDDEN)
 
         message = Message.objects.create(sender=sender, conversation=conversation, message_body=message_body)
         serializer = MessageSerializer(message)
@@ -156,7 +161,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsParticipantOfConversation]
+    permission_classes = [IsAuthenticated, IsParticipantOfConversation]
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['message_body', 'sender__email']
     ordering_fields = ['sent_at']

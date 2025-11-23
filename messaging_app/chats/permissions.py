@@ -47,9 +47,20 @@ class IsParticipantOfConversation(permissions.BasePermission):
 
         # Message object: only sender or any participant in the conversation can access
         if isinstance(obj, Message):
-            if obj.sender == request.user:
-                return True
-            return request.user in obj.conversation.participants.all()
+            # Allow read for participants and sender
+            if request.method in ('GET', 'HEAD', 'OPTIONS'):
+                if obj.sender == request.user:
+                    return True
+                return request.user in obj.conversation.participants.all()
+
+            # For modifications (PUT, PATCH, DELETE) only allow sender or participants
+            if request.method in ('PUT', 'PATCH', 'DELETE'):
+                if obj.sender == request.user:
+                    return True
+                return request.user in obj.conversation.participants.all()
+
+            # Default deny for other methods
+            return False
 
         # Default deny
         return False

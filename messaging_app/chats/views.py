@@ -8,6 +8,8 @@ from .serializers import (
     ConversationDetailSerializer,
     MessageSerializer,
 )
+from .permissions import IsParticipantOrSender
+from django.db.models import Q
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -30,6 +32,16 @@ class ConversationViewSet(viewsets.ModelViewSet):
     - Delete a conversation
     """
     queryset = Conversation.objects.all()
+    permission_classes = [IsParticipantOrSender]
+
+    def get_queryset(self):
+        """Limit conversations to those the requesting user participates in (unless staff)."""
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return Conversation.objects.none()
+        if user.is_staff or user.is_superuser:
+            return Conversation.objects.all()
+        return Conversation.objects.filter(participants=user).distinct()
 
     def get_serializer_class(self):
         """
@@ -144,6 +156,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
+    permission_classes = [IsParticipantOrSender]
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     search_fields = ['message_body', 'sender__email']
     ordering_fields = ['sent_at']
@@ -152,7 +165,13 @@ class MessageViewSet(viewsets.ModelViewSet):
         """
         Filter messages by conversation if conversation_id is provided.
         """
-        queryset = Message.objects.all()
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return Message.objects.none()
+
+        # base queryset: messages where the user is sender or a participant in the conversation
+        queryset = Message.objects.filter(Q(sender=user) | Q(conversation__participants=user)).distinct()
+
         conversation_id = self.request.query_params.get('conversation_id')
         if conversation_id:
             queryset = queryset.filter(conversation__conversation_id=conversation_id)

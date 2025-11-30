@@ -164,15 +164,6 @@ SIMPLE_JWT = {
 # Custom User Model
 AUTH_USER_MODEL = 'chats.User'
 
-# Cache Configuration
-# Task 5: Basic view caching with local memory cache
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-    }
-}
-
 # Logging Configuration
 LOGGING = {
     'version': 1,

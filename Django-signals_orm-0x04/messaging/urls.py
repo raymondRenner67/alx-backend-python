@@ -1,12 +1,6 @@
 from django.urls import path, include
 from rest_framework import routers
-from .views import (
-    UserViewSet, 
-    ConversationViewSet, 
-    MessageViewSet,
-    delete_user,
-    cached_conversation_messages
-)
+from .views import UserViewSet, ConversationViewSet, MessageViewSet
 
 # If you need nested routes, you could use rest_framework_nested's NestedDefaultRouter.
 # We include a safe import attempt so the symbol appears in the file for checks and
@@ -27,8 +21,4 @@ app_name = 'chats'
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Task 2: Delete user endpoint
-    path('user/delete/', delete_user, name='delete-user'),
-    # Task 5: Cached messages endpoint
-    path('messages/cached/', cached_conversation_messages, name='cached-messages'),
 ]

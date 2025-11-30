@@ -78,23 +78,24 @@ def delete_user_related_data(sender, instance, **kwargs):
     Task 2: Automatically clean up related data when a user deletes their account.
     
     This signal ensures that when a User is deleted, all associated data is cleaned up:
-    - Messages sent by the user (CASCADE handles this)
-    - Notifications for the user (CASCADE handles this)
-    - Message histories (CASCADE through messages)
+    - Messages sent by the user
+    - Notifications for the user
+    - Message histories (through messages CASCADE)
     
-    Note: Foreign key constraints with CASCADE already handle most cleanup,
-    but this signal can be extended for custom cleanup logic if needed.
+    While foreign key constraints with CASCADE handle most cleanup automatically,
+    this signal provides explicit deletion for completeness and logging.
     """
-    # The CASCADE option on foreign keys automatically deletes:
-    # - Messages (sender FK)
-    # - Notifications (user FK)
-    # - MessageHistory (through Message FK)
+    # Explicitly delete all messages sent by this user
+    # This will CASCADE delete related MessageHistory records
+    deleted_messages = Message.objects.filter(sender=instance).delete()
     
-    # Additional custom cleanup can be added here if needed
-    # For example, logging the deletion or sending notifications to admins
+    # Explicitly delete all notifications for this user
+    deleted_notifications = Notification.objects.filter(user=instance).delete()
     
     # Log the deletion (could be to a file, external service, etc.)
-    print(f"User {instance.get_full_name()} ({instance.email}) account and all related data deleted")
+    print(f"User {instance.get_full_name()} ({instance.email}) account deleted")
+    print(f"  - Deleted {deleted_messages[0]} message(s)")
+    print(f"  - Deleted {deleted_notifications[0]} notification(s)")
     
     # Optionally notify admins
     admin_users = User.objects.filter(role='admin')

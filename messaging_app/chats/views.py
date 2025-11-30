@@ -191,12 +191,60 @@ class MessageViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Create a new message in a conversation.
+        Automatically sets the sender to the authenticated user.
         """
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        # Get the sender from the authenticated user
+        sender = request.user
+        
+        # Get conversation and message body from request data
+        conversation_id = request.data.get('conversation')
+        message_body = request.data.get('message_body')
+        parent_message_id = request.data.get('parent_message')
+        
+        if not conversation_id or not message_body:
+            return Response({
+                'error': 'conversation and message_body are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            conversation = Conversation.objects.get(conversation_id=conversation_id)
+            
+            # Verify sender is a participant
+            if sender not in conversation.participants.all():
+                return Response({
+                    'error': 'You are not a participant of this conversation'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Get parent message if provided (for threaded replies)
+            parent_message = None
+            if parent_message_id:
+                try:
+                    parent_message = Message.objects.get(message_id=parent_message_id)
+                except Message.DoesNotExist:
+                    return Response({
+                        'error': 'Parent message not found'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Create the message with sender=request.user
+            message = Message.objects.create(
+                sender=sender,
+                conversation=conversation,
+                message_body=message_body,
+                parent_message=parent_message
+            )
+            
+            # Get all receivers (participants except sender)
+            receivers = conversation.participants.exclude(user_id=sender.user_id)
+            
+            # The post_save signal will automatically create notifications for receivers
+            
+            serializer = self.get_serializer(message)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Conversation.DoesNotExist:
+            return Response({
+                'error': 'Conversation not found'
+            }, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=False, methods=['get'])
     def unread(self, request):

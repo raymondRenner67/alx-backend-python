@@ -1,8 +1,10 @@
 from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import User, Conversation, Message
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
+from .models import User, Conversation, Message, Notification, MessageHistory
 from .serializers import (
     UserSerializer,
     ConversationListSerializer,
@@ -12,7 +14,7 @@ from .serializers import (
 from .permissions import IsParticipantOfConversation
 from .pagination import MessagePagination
 from .filters import MessageFilter
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
@@ -195,4 +197,143 @@ class MessageViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=False, methods=['get'])
+    def unread(self, request):
+        """
+        Task 4: Get unread messages for the authenticated user.
+        Uses the custom UnreadMessagesManager with .only() optimization.
+        """
+        user = request.user
+        unread_messages = Message.unread.unread_for_user(user)
+        
+        # Paginate results
+        page = self.paginate_queryset(unread_messages)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(unread_messages, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def mark_as_read(self, request, pk=None):
+        """
+        Task 4: Mark a message as read.
+        """
+        message = self.get_object()
+        message.read = True
+        message.save()
+        serializer = self.get_serializer(message)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def thread(self, request, pk=None):
+        """
+        Task 3: Get threaded conversation (message and all its replies).
+        Uses prefetch_related and select_related for optimization.
+        """
+        message = self.get_object()
+        
+        # Recursively fetch all replies with optimization
+        messages_with_replies = Message.objects.filter(
+            Q(message_id=message.message_id) | Q(parent_message=message)
+        ).select_related(
+            'sender', 'conversation', 'parent_message'
+        ).prefetch_related(
+            'replies', 'history'
+        )
+        
+        serializer = self.get_serializer(messages_with_replies, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """
+        Task 1: Get edit history for a message.
+        """
+        message = self.get_object()
+        history = message.history.all()
+        
+        history_data = [{
+            'history_id': h.history_id,
+            'old_content': h.old_content,
+            'edited_at': h.edited_at
+        } for h in history]
+        
+        return Response({
+            'message_id': message.message_id,
+            'current_content': message.message_body,
+            'edited': message.edited,
+            'history': history_data
+        })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_user(request):
+    """
+    Task 2: Delete user account and all related data.
+    The post_delete signal will handle cleanup of messages, notifications, and history.
+    """
+    user = request.user
+    
+    # Store user info for response
+    user_email = user.email
+    user_name = user.get_full_name()
+    
+    # Delete the user (signals will handle related data cleanup)
+    user.delete()
+    
+    return Response({
+        'message': f'User account for {user_name} ({user_email}) and all related data has been deleted successfully.'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+@cache_page(60)  # Task 5: Cache for 60 seconds
+def cached_conversation_messages(request):
+    """
+    Task 5: Cached view that retrieves messages in a conversation.
+    Cache timeout is set to 60 seconds.
+    """
+    conversation_id = request.query_params.get('conversation_id')
+    
+    if not conversation_id:
+        return Response({
+            'error': 'conversation_id parameter is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        conversation = Conversation.objects.get(conversation_id=conversation_id)
+        
+        # Check if user is participant
+        if request.user not in conversation.participants.all():
+            return Response({
+                'error': 'You are not a participant of this conversation'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get messages with optimization
+        messages = Message.objects.filter(
+            conversation=conversation
+        ).select_related(
+            'sender', 'conversation'
+        ).prefetch_related(
+            'replies'
+        ).order_by('-sent_at')
+        
+        serializer = MessageSerializer(messages, many=True)
+        
+        return Response({
+            'conversation_id': conversation_id,
+            'message_count': messages.count(),
+            'messages': serializer.data,
+            'cached': True  # Indicator that this response might be cached
+        })
+        
+    except Conversation.DoesNotExist:
+        return Response({
+            'error': 'Conversation not found'
+        }, status=status.HTTP_404_NOT_FOUND)
 

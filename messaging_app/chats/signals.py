@@ -50,11 +50,13 @@ def log_message_edit(sender, instance, **kwargs):
                 # Save the old content to history
                 MessageHistory.objects.create(
                     message=instance,
-                    old_content=old_message.message_body
+                    old_content=old_message.message_body,
+                    edited_by=instance.sender  # Track who edited it
                 )
                 
-                # Mark the message as edited
+                # Mark the message as edited and track editor
                 instance.edited = True
+                instance.edited_by = instance.sender
                 
                 # Optionally create a notification for message edit
                 receivers = instance.conversation.participants.exclude(user_id=instance.sender.user_id)

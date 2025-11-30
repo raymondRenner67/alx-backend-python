@@ -251,20 +251,33 @@ class MessageViewSet(viewsets.ModelViewSet):
     def history(self, request, pk=None):
         """
         Task 1: Get edit history for a message.
+        Display the message edit history in the user interface,
+        allowing users to view previous versions of their messages.
         """
         message = self.get_object()
         history = message.history.all()
         
         history_data = [{
-            'history_id': h.history_id,
+            'history_id': str(h.history_id),
             'old_content': h.old_content,
-            'edited_at': h.edited_at
+            'edited_at': h.edited_at,
+            'edited_by': {
+                'user_id': str(h.edited_by.user_id) if h.edited_by else None,
+                'name': h.edited_by.get_full_name() if h.edited_by else 'Unknown',
+                'email': h.edited_by.email if h.edited_by else None
+            } if h.edited_by else None
         } for h in history]
         
         return Response({
-            'message_id': message.message_id,
+            'message_id': str(message.message_id),
             'current_content': message.message_body,
             'edited': message.edited,
+            'last_edited_by': {
+                'user_id': str(message.edited_by.user_id) if message.edited_by else None,
+                'name': message.edited_by.get_full_name() if message.edited_by else 'Unknown',
+                'email': message.edited_by.email if message.edited_by else None
+            } if message.edited_by else None,
+            'edit_count': len(history_data),
             'history': history_data
         })
 

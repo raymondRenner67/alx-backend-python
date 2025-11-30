@@ -86,6 +86,14 @@ class Message(models.Model):
     
     # Task 1: Track if message has been edited
     edited = models.BooleanField(default=False)
+    edited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='edited_messages',
+        help_text="User who last edited this message"
+    )
     
     # Task 3: Self-referential foreign key for threaded conversations (replies)
     parent_message = models.ForeignKey(
@@ -135,6 +143,14 @@ class MessageHistory(models.Model):
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='history')
     old_content = models.TextField()
     edited_at = models.DateTimeField(auto_now_add=True)
+    edited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='message_edits',
+        help_text="User who made this edit"
+    )
 
     class Meta:
         ordering = ['-edited_at']

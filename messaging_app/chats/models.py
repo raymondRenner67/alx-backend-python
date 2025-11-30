@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 import uuid
+from .managers import UnreadMessagesManager
+from .managers import UnreadMessagesManager
 
 
 class User(AbstractUser):
@@ -47,26 +49,6 @@ class Conversation(models.Model):
     def __str__(self):
         participant_names = ', '.join([p.get_full_name() for p in self.participants.all()])
         return f"Conversation: {participant_names} ({self.conversation_id})"
-
-
-class UnreadMessagesManager(models.Manager):
-    """
-    Custom manager to filter unread messages for a specific user.
-    Task 4: Custom ORM Manager for Unread Messages
-    """
-    def unread_for_user(self, user):
-        """
-        Retrieve unread messages for a specific user.
-        Uses .only() to retrieve only necessary fields for optimization.
-        """
-        return self.filter(
-            conversation__participants=user,
-            read=False
-        ).exclude(
-            sender=user
-        ).only(
-            'message_id', 'sender', 'conversation', 'message_body', 'sent_at', 'read'
-        ).select_related('sender', 'conversation')
 
 
 class Message(models.Model):

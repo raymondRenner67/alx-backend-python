@@ -26,6 +26,7 @@ COPY . /app/
 RUN python manage.py collectstatic --noinput || true
 
 # Expose port 8000
+# Run container with: docker run -p 8000:8000 messaging-app
 EXPOSE 8000
 
 # Run migrations and start server

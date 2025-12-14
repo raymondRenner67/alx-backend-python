@@ -1,0 +1,162 @@
+---
+# Ingress Resource for Django Messaging App
+# Routes external traffic to the Django application
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-messaging-ingress
+  labels:
+    app: django-messaging
+  annotations:
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+spec:
+  ingressClassName: nginx
+  rules:
+  # Rule for messaging-app.local domain
+  - host: messaging-app.local
+    http:
+      paths:
+      # Root path - Django app
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+      # Admin interface
+      - path: /admin
+        pathType: Prefix
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+      # API endpoints
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+      # Chats endpoints
+      - path: /chats
+        pathType: Prefix
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+  
+  # Rule for api subdomain
+  - host: api.messaging-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+
+---
+# Alternative Ingress with path-based routing
+# Uncomment to use path-based routing instead of host-based
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-messaging-ingress-paths
+  labels:
+    app: django-messaging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      # API path - /api/* routes to Django API
+      - path: /api(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+      
+      # Admin path - /admin/* routes to Django admin
+      - path: /admin(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+      
+      # Messaging app path - /messaging/* routes to messaging app
+      - path: /messaging(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000
+      
+      # Blue version - direct access for testing
+      - path: /blue(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: django-messaging-blue
+            port:
+              number: 8000
+      
+      # Green version - direct access for testing
+      - path: /green(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: django-messaging-green
+            port:
+              number: 8000
+
+---
+# TLS/HTTPS Ingress (Optional - requires SSL certificate)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: django-messaging-ingress-tls
+  labels:
+    app: django-messaging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - messaging-app.local
+    - api.messaging-app.local
+    secretName: messaging-app-tls
+  rules:
+  - host: messaging-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: django-messaging-service
+            port:
+              number: 8000

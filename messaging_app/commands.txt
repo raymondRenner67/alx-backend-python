@@ -1,0 +1,175 @@
+# Kubernetes Ingress Setup Commands for Django Messaging App
+
+## Step 1: Install Nginx Ingress Controller
+
+### For Minikube:
+minikube addons enable ingress
+
+### Verify Ingress Controller Installation:
+kubectl get pods -n ingress-nginx
+
+### Alternative - Install using Helm (if not using minikube):
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+
+### Alternative - Install using kubectl apply:
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+
+### Wait for Ingress Controller to be ready:
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+
+
+## Step 2: Apply Ingress Configuration
+
+### Apply the Ingress resource:
+kubectl apply -f ingress.yaml
+
+### Verify Ingress resource was created:
+kubectl get ingress
+
+### Get detailed Ingress information:
+kubectl describe ingress django-messaging-ingress
+
+### Check Ingress Controller logs:
+kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
+
+
+## Step 3: Configure Local DNS (for testing with minikube)
+
+### Get Minikube IP:
+minikube ip
+
+### Add to /etc/hosts (Linux/Mac) or C:\Windows\System32\drivers\etc\hosts (Windows):
+# Add this line (replace <MINIKUBE_IP> with actual IP from previous command):
+# <MINIKUBE_IP> messaging-app.local api.messaging-app.local
+
+### Windows PowerShell command to add hosts entry (Run as Administrator):
+Add-Content -Path C:\Windows\System32\drivers\etc\hosts -Value "`n$(minikube ip) messaging-app.local api.messaging-app.local"
+
+### Linux/Mac command to add hosts entry:
+echo "$(minikube ip) messaging-app.local api.messaging-app.local" | sudo tee -a /etc/hosts
+
+
+## Step 4: Test the Ingress
+
+### Test root path:
+curl http://messaging-app.local/
+
+### Test API path:
+curl http://messaging-app.local/api/
+
+### Test admin path:
+curl http://messaging-app.local/admin/
+
+### Test API subdomain:
+curl http://api.messaging-app.local/
+
+### Test with browser:
+# Open: http://messaging-app.local
+# Open: http://messaging-app.local/admin
+# Open: http://api.messaging-app.local
+
+
+## Step 5: Verify Ingress is Working
+
+### Check Ingress status:
+kubectl get ingress django-messaging-ingress
+
+### View Ingress details:
+kubectl describe ingress django-messaging-ingress
+
+### Check backend service:
+kubectl get service django-messaging-service
+
+### Check endpoints:
+kubectl get endpoints django-messaging-service
+
+### View Ingress Controller logs:
+kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --tail=50
+
+
+## Step 6: Update Ingress (if needed)
+
+### Edit Ingress resource:
+kubectl edit ingress django-messaging-ingress
+
+### Or reapply after modifying ingress.yaml:
+kubectl apply -f ingress.yaml
+
+### Delete and recreate Ingress:
+kubectl delete -f ingress.yaml
+kubectl apply -f ingress.yaml
+
+
+## Step 7: Port Forwarding (Alternative for local testing without hosts file)
+
+### Port forward Ingress Controller:
+kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
+
+### Then access via:
+# http://localhost:8080
+
+
+## Troubleshooting Commands
+
+### Check if Ingress Controller is running:
+kubectl get pods -n ingress-nginx
+
+### Check Ingress Controller service:
+kubectl get svc -n ingress-nginx
+
+### View Ingress events:
+kubectl get events --sort-by='.lastTimestamp' | grep ingress
+
+### Check Ingress class:
+kubectl get ingressclass
+
+### Describe Ingress Controller:
+kubectl describe pod -n ingress-nginx -l app.kubernetes.io/component=controller
+
+### Test connectivity to backend service:
+kubectl run test-pod --image=curlimages/curl --rm -it --restart=Never -- curl http://django-messaging-service:8000
+
+
+## Cleanup Commands
+
+### Delete Ingress resource:
+kubectl delete -f ingress.yaml
+
+### Disable minikube Ingress addon:
+minikube addons disable ingress
+
+### Delete Ingress Controller (if installed via kubectl):
+kubectl delete -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
+
+### Delete Ingress Controller (if installed via Helm):
+helm uninstall nginx-ingress -n ingress-nginx
+
+
+## Additional Configuration
+
+### Enable SSL/TLS (requires cert-manager):
+# Install cert-manager:
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
+# Apply TLS Ingress configuration (uncomment TLS section in ingress.yaml first):
+kubectl apply -f ingress.yaml
+
+### Scale Ingress Controller:
+kubectl scale deployment -n ingress-nginx ingress-nginx-controller --replicas=2
+
+### Update Ingress annotations:
+kubectl annotate ingress django-messaging-ingress nginx.ingress.kubernetes.io/proxy-body-size=20m --overwrite
+
+
+## Monitoring
+
+### Watch Ingress status:
+kubectl get ingress --watch
+
+### Monitor Ingress Controller logs in real-time:
+kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller -f
+
+### Check Ingress metrics (if metrics enabled):
+kubectl top pods -n ingress-nginx

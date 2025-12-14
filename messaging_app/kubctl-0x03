@@ -1,0 +1,274 @@
+#!/bin/bash
+
+# Script for Rolling Update with Zero Downtime Verification
+# This script applies rolling updates and continuously tests for downtime
+
+echo "=========================================="
+echo "Kubernetes Rolling Update Script"
+echo "=========================================="
+echo ""
+
+# Check if kubectl is available
+if ! command -v kubectl &> /dev/null; then
+    echo "Error: kubectl is not installed"
+    exit 1
+fi
+echo "✓ kubectl is available"
+echo ""
+
+# Configuration
+DEPLOYMENT_NAME="django-messaging-app-blue"
+DEPLOYMENT_FILE="blue_deployment.yaml"
+SERVICE_NAME="django-messaging-service"
+TEST_ENDPOINT="http://localhost:8000"
+LOG_FILE="rolling_update_$(date +%Y%m%d_%H%M%S).log"
+
+# Function to test application availability
+test_application() {
+    local url=$1
+    local response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 "$url" 2>/dev/null)
+    if [ "$response" = "200" ] || [ "$response" = "301" ] || [ "$response" = "302" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to continuously monitor application availability
+monitor_availability() {
+    local duration=$1
+    local interval=1
+    local total_requests=0
+    local failed_requests=0
+    local end_time=$((SECONDS + duration))
+    
+    echo "Starting continuous availability monitoring for ${duration}s..."
+    echo "$(date): Monitoring started" >> "$LOG_FILE"
+    
+    while [ $SECONDS -lt $end_time ]; do
+        total_requests=$((total_requests + 1))
+        
+        if test_application "$TEST_ENDPOINT"; then
+            echo -n "."
+        else
+            failed_requests=$((failed_requests + 1))
+            echo -n "X"
+            echo "$(date): Request failed (Total failures: $failed_requests)" >> "$LOG_FILE"
+        fi
+        
+        sleep $interval
+    done
+    
+    echo ""
+    echo ""
+    echo "Availability Test Results:"
+    echo "  Total Requests: $total_requests"
+    echo "  Failed Requests: $failed_requests"
+    echo "  Success Rate: $(awk "BEGIN {printf \"%.2f%%\", (($total_requests - $failed_requests) / $total_requests) * 100}")"
+    echo ""
+    
+    if [ $failed_requests -eq 0 ]; then
+        echo "✓ Zero downtime achieved!"
+        return 0
+    else
+        echo "⚠️  Some requests failed during update"
+        return 1
+    fi
+}
+
+# Step 1: Check current deployment status
+echo "=========================================="
+echo "Step 1: Current Deployment Status"
+echo "=========================================="
+kubectl get deployment $DEPLOYMENT_NAME
+
+if [ $? -ne 0 ]; then
+    echo "⚠️  Deployment not found, creating new deployment..."
+else
+    echo ""
+    echo "Current image version:"
+    kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}'
+    echo ""
+    echo ""
+    
+    echo "Current pods:"
+    kubectl get pods -l app=django-messaging,version=blue
+    echo ""
+fi
+
+# Step 2: Set up port forwarding in background (if service exists)
+echo "=========================================="
+echo "Step 2: Setting up Port Forwarding"
+echo "=========================================="
+echo "Starting port forward to service..."
+
+# Kill any existing port-forward processes
+pkill -f "kubectl port-forward.*$SERVICE_NAME" 2>/dev/null
+
+# Start port forwarding in background
+kubectl port-forward service/$SERVICE_NAME 8000:8000 > /dev/null 2>&1 &
+PORT_FORWARD_PID=$!
+sleep 3
+
+if ps -p $PORT_FORWARD_PID > /dev/null 2>&1; then
+    echo "✓ Port forwarding established (PID: $PORT_FORWARD_PID)"
+else
+    echo "⚠️  Port forwarding failed, will skip availability tests"
+    PORT_FORWARD_PID=""
+fi
+echo ""
+
+# Step 3: Test initial application availability
+echo "=========================================="
+echo "Step 3: Testing Initial Application State"
+echo "=========================================="
+if [ -n "$PORT_FORWARD_PID" ] && ps -p $PORT_FORWARD_PID > /dev/null 2>&1; then
+    if test_application "$TEST_ENDPOINT"; then
+        echo "✓ Application is responding before update"
+    else
+        echo "⚠️  Application not responding, continuing anyway..."
+    fi
+else
+    echo "ℹ️  Skipping pre-update test (port forwarding not available)"
+fi
+echo ""
+
+# Step 4: Start background monitoring
+echo "=========================================="
+echo "Step 4: Starting Continuous Monitoring"
+echo "=========================================="
+if [ -n "$PORT_FORWARD_PID" ] && ps -p $PORT_FORWARD_PID > /dev/null 2>&1; then
+    echo "Monitoring will run during the rolling update..."
+    echo "Legend: . = success, X = failure"
+    echo ""
+    
+    # Start monitoring in background
+    monitor_availability 60 &
+    MONITOR_PID=$!
+else
+    echo "ℹ️  Skipping availability monitoring (port forwarding not available)"
+    MONITOR_PID=""
+fi
+
+# Give monitoring a moment to start
+sleep 2
+
+# Step 5: Apply rolling update
+echo ""
+echo "=========================================="
+echo "Step 5: Applying Rolling Update"
+echo "=========================================="
+echo "Applying deployment file: $DEPLOYMENT_FILE"
+kubectl apply -f $DEPLOYMENT_FILE
+
+if [ $? -ne 0 ]; then
+    echo "✗ Failed to apply deployment"
+    kill $PORT_FORWARD_PID 2>/dev/null
+    kill $MONITOR_PID 2>/dev/null
+    exit 1
+fi
+echo "✓ Rolling update initiated"
+echo ""
+
+echo "New image version:"
+kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}'
+echo ""
+echo ""
+
+# Step 6: Monitor rollout status
+echo "=========================================="
+echo "Step 6: Monitoring Rollout Progress"
+echo "=========================================="
+kubectl rollout status deployment/$DEPLOYMENT_NAME --timeout=120s
+
+if [ $? -eq 0 ]; then
+    echo "✓ Rollout completed successfully"
+else
+    echo "✗ Rollout failed or timed out"
+    kill $PORT_FORWARD_PID 2>/dev/null
+    kill $MONITOR_PID 2>/dev/null
+    exit 1
+fi
+echo ""
+
+# Step 7: Wait for monitoring to complete
+if [ -n "$MONITOR_PID" ] && ps -p $MONITOR_PID > /dev/null 2>&1; then
+    echo "Waiting for availability monitoring to complete..."
+    wait $MONITOR_PID
+    MONITOR_RESULT=$?
+fi
+
+# Step 8: Verify rollout completion
+echo "=========================================="
+echo "Step 8: Verifying Rollout Completion"
+echo "=========================================="
+echo ""
+echo "Updated pods:"
+kubectl get pods -l app=django-messaging,version=blue
+echo ""
+
+echo "Rollout history:"
+kubectl rollout history deployment/$DEPLOYMENT_NAME
+echo ""
+
+echo "Current deployment status:"
+kubectl get deployment $DEPLOYMENT_NAME
+echo ""
+
+echo "Pod details:"
+kubectl get pods -l app=django-messaging,version=blue -o wide
+echo ""
+
+# Step 9: Final verification
+echo "=========================================="
+echo "Step 9: Final Verification"
+echo "=========================================="
+
+# Verify all pods are running
+READY_REPLICAS=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.status.readyReplicas}')
+DESIRED_REPLICAS=$(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.replicas}')
+
+echo "Ready Replicas: $READY_REPLICAS / $DESIRED_REPLICAS"
+
+if [ "$READY_REPLICAS" = "$DESIRED_REPLICAS" ]; then
+    echo "✓ All replicas are ready"
+else
+    echo "⚠️  Not all replicas are ready yet"
+fi
+echo ""
+
+# Test final application state
+if [ -n "$PORT_FORWARD_PID" ] && ps -p $PORT_FORWARD_PID > /dev/null 2>&1; then
+    echo "Testing application after update..."
+    if test_application "$TEST_ENDPOINT"; then
+        echo "✓ Application is responding after update"
+    else
+        echo "⚠️  Application not responding after update"
+    fi
+fi
+echo ""
+
+# Cleanup port forwarding
+if [ -n "$PORT_FORWARD_PID" ]; then
+    kill $PORT_FORWARD_PID 2>/dev/null
+    echo "✓ Port forwarding stopped"
+fi
+echo ""
+
+# Final summary
+echo "=========================================="
+echo "Rolling Update Complete!"
+echo "=========================================="
+echo ""
+echo "Summary:"
+echo "  - Deployment: $DEPLOYMENT_NAME"
+echo "  - Image: $(kubectl get deployment $DEPLOYMENT_NAME -o jsonpath='{.spec.template.spec.containers[0].image}')"
+echo "  - Replicas: $READY_REPLICAS / $DESIRED_REPLICAS"
+echo "  - Log file: $LOG_FILE"
+echo ""
+echo "Useful commands:"
+echo "  - kubectl get pods -l app=django-messaging,version=blue"
+echo "  - kubectl describe deployment $DEPLOYMENT_NAME"
+echo "  - kubectl rollout history deployment/$DEPLOYMENT_NAME"
+echo "  - kubectl rollout undo deployment/$DEPLOYMENT_NAME  # Rollback if needed"
+echo ""

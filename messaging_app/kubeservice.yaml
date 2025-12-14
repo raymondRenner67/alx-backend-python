@@ -1,0 +1,112 @@
+---
+# Blue-Green Service for Django Messaging App
+# This service can be updated to switch traffic between blue and green deployments
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-messaging-service
+  labels:
+    app: django-messaging
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: django-messaging
+    version: blue  # Change this to 'green' to switch traffic
+    tier: backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+
+---
+# LoadBalancer Service for external access (optional)
+# Use this if you want to expose the app externally
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-messaging-external
+  labels:
+    app: django-messaging
+    tier: backend
+spec:
+  type: LoadBalancer
+  selector:
+    app: django-messaging
+    version: blue  # Change this to 'green' to switch traffic
+    tier: backend
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+
+---
+# Blue Service - Direct access to blue deployment (for testing)
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-messaging-blue
+  labels:
+    app: django-messaging
+    version: blue
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: django-messaging
+    version: blue
+    tier: backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+
+---
+# Green Service - Direct access to green deployment (for testing)
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-messaging-green
+  labels:
+    app: django-messaging
+    version: green
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: django-messaging
+    version: green
+    tier: backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+
+---
+# ConfigMap for Django settings
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: django-config
+data:
+  DJANGO_SETTINGS_MODULE: "messaging_app.settings"
+  ALLOWED_HOSTS: "*"
+  DATABASE_URL: "sqlite:///db.sqlite3"
+
+---
+# Secret for sensitive data
+apiVersion: v1
+kind: Secret
+metadata:
+  name: django-secrets
+type: Opaque
+stringData:
+  secret-key: "django-insecure-change-this-in-production-k8s-secret-key-12345"

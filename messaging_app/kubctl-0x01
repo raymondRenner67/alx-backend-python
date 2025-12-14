@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# Script to scale Django messaging app deployment to 3 replicas using kubectl
+
+echo "=========================================="
+echo "Scaling Django Messaging App Deployment"
+echo "=========================================="
+echo ""
+
+# Check if kubectl is available
+if ! command -v kubectl &> /dev/null; then
+    echo "Error: kubectl is not installed"
+    exit 1
+fi
+echo "✓ kubectl is available"
+echo ""
+
+# Check current deployment status
+echo "Current deployment status:"
+echo "=========================================="
+kubectl get deployment django-messaging-app 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo "Error: Deployment 'django-messaging-app' not found"
+    echo "Please ensure the deployment exists before scaling"
+    echo "Run: kubectl apply -f deployment.yaml"
+    exit 1
+fi
+echo ""
+
+# Scale deployment to 3 replicas
+echo "Scaling deployment to 3 replicas..."
+echo "=========================================="
+kubectl scale deployment django-messaging-app --replicas=3
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to scale deployment"
+    exit 1
+fi
+echo "✓ Scale command executed successfully"
+echo ""
+
+# Wait for rollout to complete
+echo "Waiting for rollout to complete..."
+kubectl rollout status deployment/django-messaging-app --timeout=120s
+echo ""
+
+# Display updated deployment status
+echo "Updated deployment status:"
+echo "=========================================="
+kubectl get deployment django-messaging-app
+echo ""
+
+# Display pods
+echo "Pods after scaling:"
+echo "=========================================="
+kubectl get pods -l app=django-messaging
+echo ""
+
+# Count running pods
+RUNNING_PODS=$(kubectl get pods -l app=django-messaging --no-headers 2>/dev/null | grep -c "Running")
+echo "=========================================="
+echo "Scaling Complete!"
+echo "=========================================="
+echo "✓ Deployment scaled to 3 replicas"
+echo "✓ $RUNNING_PODS pod(s) are currently running"
+echo ""
+echo "Useful commands:"
+echo "  - kubectl get pods -l app=django-messaging  : View all pods"
+echo "  - kubectl scale deployment django-messaging-app --replicas=5 : Scale to 5 replicas"
+echo "  - kubectl describe deployment django-messaging-app : View deployment details"
+echo ""

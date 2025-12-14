@@ -1,0 +1,82 @@
+---
+# Green Deployment for Django Messaging App (New Version)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-messaging-app-green
+  labels:
+    app: django-messaging
+    version: green
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: django-messaging
+      version: green
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: django-messaging
+        version: green
+        tier: backend
+    spec:
+      containers:
+      - name: django-messaging
+        # Docker image for the Django messaging app (new version)
+        # Update this with your new version tag
+        image: django-messaging-app:v2
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        # Environment variables for Django
+        - name: DJANGO_SETTINGS_MODULE
+          value: "messaging_app.settings"
+        - name: DEBUG
+          value: "False"
+        - name: ALLOWED_HOSTS
+          value: "*"
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: django-secrets
+              key: secret-key
+              optional: true
+        - name: DATABASE_URL
+          value: "sqlite:///db.sqlite3"
+        - name: APP_VERSION
+          value: "green"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /admin/
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /admin/
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: django-data
+          mountPath: /app/db.sqlite3
+          subPath: db.sqlite3
+      volumes:
+      - name: django-data
+        emptyDir: {}

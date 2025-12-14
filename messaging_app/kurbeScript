@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# Kubernetes Setup Script - kurbeScript
+# This script starts a Kubernetes cluster, verifies it's running, and retrieves available pods
+
+echo "=========================================="
+echo "Kubernetes Cluster Setup Script"
+echo "=========================================="
+echo ""
+
+# Check if minikube is installed
+echo "Checking if minikube is installed..."
+if ! command -v minikube &> /dev/null; then
+    echo "Error: minikube is not installed."
+    echo "Please install minikube from: https://minikube.sigs.k8s.io/docs/start/"
+    exit 1
+else
+    echo "✓ minikube is installed"
+    minikube version
+fi
+echo ""
+
+# Check if kubectl is installed
+echo "Checking if kubectl is installed..."
+if ! command -v kubectl &> /dev/null; then
+    echo "Error: kubectl is not installed."
+    echo "Please install kubectl from: https://kubernetes.io/docs/tasks/tools/"
+    exit 1
+else
+    echo "✓ kubectl is installed"
+    kubectl version --client
+fi
+echo ""
+
+# Start minikube cluster
+echo "=========================================="
+echo "Starting Kubernetes cluster with minikube..."
+echo "=========================================="
+minikube start
+
+# Check if minikube started successfully
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to start minikube cluster"
+    exit 1
+fi
+echo ""
+
+# Wait a moment for the cluster to stabilize
+echo "Waiting for cluster to stabilize..."
+sleep 5
+echo ""
+
+# Verify cluster is running
+echo "=========================================="
+echo "Verifying cluster is running..."
+echo "=========================================="
+kubectl cluster-info
+
+if [ $? -ne 0 ]; then
+    echo "Error: Cluster verification failed"
+    exit 1
+fi
+echo ""
+
+# Get cluster status
+echo "=========================================="
+echo "Minikube Status:"
+echo "=========================================="
+minikube status
+echo ""
+
+# Retrieve available pods in all namespaces
+echo "=========================================="
+echo "Retrieving available pods in all namespaces..."
+echo "=========================================="
+kubectl get pods --all-namespaces
+
+echo ""
+echo "=========================================="
+echo "Retrieving pods in default namespace..."
+echo "=========================================="
+kubectl get pods
+
+echo ""
+echo "=========================================="
+echo "Cluster Setup Complete!"
+echo "=========================================="
+echo ""
+echo "Useful commands:"
+echo "  - kubectl get nodes          : View cluster nodes"
+echo "  - kubectl get pods           : View pods in default namespace"
+echo "  - kubectl get pods -A        : View pods in all namespaces"
+echo "  - kubectl get services       : View services"
+echo "  - minikube dashboard         : Open Kubernetes dashboard"
+echo "  - minikube stop              : Stop the cluster"
+echo "  - minikube delete            : Delete the cluster"
+echo ""

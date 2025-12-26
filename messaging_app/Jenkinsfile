@@ -1,0 +1,121 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE = 'your-dockerhub-username/messaging-app'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
+        GITHUB_CREDENTIALS_ID = 'github-credentials'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                // Pull code from GitHub
+                git credentialsId: "${GITHUB_CREDENTIALS_ID}",
+                    url: 'https://github.com/raymondRenner67/alx-backend-python.git',
+                    branch: 'main'
+            }
+        }
+        
+        stage('Setup Python Environment') {
+            steps {
+                script {
+                    // Install Python dependencies
+                    sh '''
+                        cd messaging_app
+                        python3 -m venv venv
+                        . venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                        pip install pytest pytest-django pytest-cov flake8
+                    '''
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                script {
+                    sh '''
+                        cd messaging_app
+                        . venv/bin/activate
+                        export DJANGO_SETTINGS_MODULE=messaging_app.settings
+                        export SECRET_KEY=test-secret-key
+                        export DEBUG=True
+                        export MYSQL_DATABASE=test_db
+                        export MYSQL_USER=test_user
+                        export MYSQL_PASSWORD=test_password
+                        export MYSQL_HOST=localhost
+                        export MYSQL_PORT=3306
+                        
+                        # Run pytest with coverage
+                        pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml
+                    '''
+                }
+            }
+        }
+        
+        stage('Generate Test Report') {
+            steps {
+                // Publish test results
+                junit 'messaging_app/test-results.xml'
+                
+                // Publish coverage report
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'messaging_app/htmlcov',
+                    reportFiles: 'index.html',
+                    reportName: 'Coverage Report'
+                ])
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                        cd messaging_app
+                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    // Login to Docker Hub and push image
+                    withCredentials([usernamePassword(
+                        credentialsId: "${DOCKER_CREDENTIALS_ID}",
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                            docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                            docker push ${DOCKER_IMAGE}:latest
+                            docker logout
+                        """
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up workspace
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
